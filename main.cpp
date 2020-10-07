@@ -86,7 +86,7 @@ int boundary(int n, int lower, int upper)
 	return (n > upper ? upper : (n < lower ? lower : n));
 }
 
-/*
+
 #define CNUM 20
 
 std::vector<KalmanTracker> trackers;
@@ -117,7 +117,8 @@ std::vector<cv::Rect_<float>> get_predictions() {
 	return predBoxes;
 }
 
-MatchItems Sort_match(std::vector<std::vector<TrackingBox>> detFrameData, int f_num, std::vector<cv::Rect_<float>> predictedBoxes) {
+MatchItems Sort_match(std::vector<std::vector<TrackingBox>> detFrameData, int __, std::vector<cv::Rect_<float>> predictedBoxes) {
+	int f_num = detFrameData.size() - 1;
 	unsigned int trkNum = 0;
 	unsigned int detNum = 0;
 	trkNum = predictedBoxes.size();
@@ -195,7 +196,8 @@ MatchItems Sort_match(std::vector<std::vector<TrackingBox>> detFrameData, int f_
 };
 
 
-std::vector<TrackingBox> update_trackers(int f_num, MatchItems M_items) {
+std::vector<TrackingBox> update_trackers(int _, MatchItems M_items) {
+	int f_num = detFrameData.size() - 1;
 	std::vector<TrackingBox> Sort_result;
 	std::vector<cv::Point> matchedPairs = M_items.matchedPairs;
 	std::set<int> unmatchedDetections = M_items.unmatchedDet;
@@ -253,7 +255,8 @@ void update_dataFrame(int f_num, std::vector<vector<float>> bbox) {
 	detFrameData.push_back(detData);
 }
 
-std::vector<TrackingBox> get_first_frame_result(int f_num) {
+std::vector<TrackingBox> get_first_frame_result(int __) {
+	int f_num = detFrameData.size() - 1;
 	std::vector<TrackingBox> first_frame;
 	for (unsigned int i = 0; i < detFrameData[f_num].size(); i++) {
 		KalmanTracker trk = KalmanTracker(detFrameData[f_num][i].box);
@@ -268,7 +271,9 @@ std::vector<TrackingBox> get_first_frame_result(int f_num) {
 	}
 	return first_frame;
 };
-*/
+
+
+
 
 
 int main() {
@@ -363,9 +368,6 @@ int main() {
 		{
 			resize_ratio = (double)416 / (double)frame.cols;
 		}
-
-		// Vertical Case: Width < Height : Then use the height to calculate resize ratio and 
-		//the new location for the resized img located in padded img 
 		else
 		{
 			resize_ratio = (double)416 / (double)frame.rows;
@@ -436,11 +438,55 @@ int main() {
 				cv::Rect b_box_modified(temp2[0], temp2[1], temp2[2] - temp2[0], temp2[3] - temp2[1]);
 				b_boxes_modified.push_back(b_box_modified);
 				cv::rectangle(s_frame, b_box_modified, cv::Scalar(255, 0, 255), 4, 4);
+
+				}
+
+			std::vector<std::vector<float>> untracked_boxes;
+			for (auto &box : b_boxes_modified) {
+				float x = box.x;
+				float y = box.y;
+				std::vector<float> box_vec = { x, y, x + box.width, y + box.height };
+				untracked_boxes.push_back(box_vec);
 			}
 
-			
-			/*
-			torch::Tensor input_tensor_sppe = sppe_tns(c_frames).to(device);
+			auto SORT_start = std::chrono::high_resolution_clock::now();
+
+			std::vector<TrackingBox> frameTrackingResult;
+			update_dataFrame(fi, untracked_boxes);
+
+			if (trackers.size() == 0) {
+				frameTrackingResult = get_first_frame_result(fi);
+			}
+			else {
+				std::vector<cv::Rect_<float>> predictedBoxes = get_predictions();
+				MatchItems matched_items = Sort_match(detFrameData, fi, predictedBoxes);
+				frameTrackingResult = update_trackers(fi, matched_items);
+			}
+
+			auto SORT_end = std::chrono::high_resolution_clock::now();
+			auto SORT_duration = duration_cast<milliseconds>(SORT_end - SORT_start);
+			std::cout << "Time taken for SORT " << SORT_duration.count() << " ms" << endl;
+
+			for (auto tb : frameTrackingResult) {
+				string num = std::to_string(tb.id);
+				cv::Point pt = cv::Point(tb.box.x, tb.box.y);
+				cv::putText(s_frame, num, pt, cv::FONT_HERSHEY_DUPLEX, 4.0, cv::Scalar(0, 255, 255), 2);
+			}
+
+
+			}
+
+
+
+
+		cv::imshow("Result", s_frame);
+		cv::waitKey(1);
+		fi++;
+
+
+
+		/*
+		torch::Tensor input_tensor_sppe = sppe_tns(c_frames).to(device);
 
 #ifdef DEBUG
 			std::cout << "SPPE CPU process done\nSPPE GPU process..." << std::endl;
@@ -481,12 +527,7 @@ int main() {
 			auto sppe_cpu_operation_duration = std::chrono::duration_cast<std::chrono::milliseconds>(sppe_cpu_operation_end - sppe_cpu_operation_start);
 			std::cout << "Time taken for sppe_cpu_operation: " << sppe_cpu_operation_duration.count() << " ms" << endl;
 			*/
-		}
-
-		cv::imshow("Result", s_frame);
-		cv::waitKey(1);
-		fi++;
-
+			//}
 	}
 	//uninitialization	
 	return 0;
