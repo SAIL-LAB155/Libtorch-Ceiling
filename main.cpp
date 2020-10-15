@@ -270,7 +270,8 @@ std::vector<TrackingBox> get_first_frame_result(int __) {
 		//std::cout << tb.frame << "," << id + 1 << "," << tb.box.x << "," << tb.box.y << "," << tb.box.width << "," << tb.box.height  << std::endl;
 	}
 	return first_frame;
-};
+}
+
 
 
 
@@ -290,14 +291,14 @@ int main() {
 	}
 	torch::Device device(device_type);
 
-	Darknet yolo("../models/yolo/1008/yolov3-original-1cls-leaky.cfg", &device);
+	Darknet yolo("../models/yolo/coco/yolov3.cfg", &device);
 	std::map<std::string, std::string> *info = yolo.get_net_info();
 	(*info)["height"] = "416";
-	yolo.load_weights("../models/yolo/1008/best.weights");
+	yolo.load_weights("../models/yolo/coco/yolov3.weights");
 	yolo.to(device);
 
-	//torch::jit::script::Module sppeModule = torch::jit::load("../models/sppe/posemodel.pt");
-	//sppeModule.to(at::kCUDA);
+	torch::jit::script::Module sppeModule = torch::jit::load("../models/sppe/posemodel.pt");
+	sppeModule.to(at::kCUDA);
 
 	//torch::jit::script::Module tcn_module = torch::jit::load("../models/TCN/tcn_model.pt",device);
 	//torch::jit::script::Module tcn_module = torch::jit::load("../models/TCN/tcn_model.pt");
@@ -308,14 +309,14 @@ int main() {
 
 
 	//cv::VideoCapture vc(0);
-	cv::VideoCapture vc1("../videos/ceiling_long_video.mp4");
-	cv::VideoCapture vc2("../videos/ceiling_long_video.mp4");
-	cv::VideoCapture vc3("../videos/ceiling_long_video.mp4");
-	cv::VideoCapture vc4("../videos/ceiling_long_video.mp4");
+	cv::VideoCapture vc1("../videos/video4_Trim.mp4");
+	cv::VideoCapture vc2("../videos/video4_Trim.mp4");
+	cv::VideoCapture vc3("../videos/video4_Trim.mp4");
+	cv::VideoCapture vc4("../videos/video4_Trim.mp4");
 
 
 	//initialize data containers
-	cv::Mat frame1, frame2, frame3, frame4; 
+	cv::Mat frame1, frame2, frame3, frame4;
 
 	cv::Size input_img_sz(YOLO_TENSOR_W, YOLO_TENSOR_H);
 	cv::Size cropped_img_sz(SPPE_TENSOR_W, SPPE_TENSOR_H);
@@ -439,7 +440,7 @@ int main() {
 				b_boxes_modified.push_back(b_box_modified);
 				cv::rectangle(s_frame, b_box_modified, cv::Scalar(255, 0, 255), 4, 4);
 
-				}
+			}
 
 			std::vector<std::vector<float>> untracked_boxes;
 			for (auto &box : b_boxes_modified) {
@@ -463,10 +464,6 @@ int main() {
 				frameTrackingResult = update_trackers(fi, matched_items);
 			}
 
-			auto SORT_end = std::chrono::high_resolution_clock::now();
-			auto SORT_duration = duration_cast<milliseconds>(SORT_end - SORT_start);
-			std::cout << "Time taken for SORT " << SORT_duration.count() << " ms" << endl;
-
 			for (auto tb : frameTrackingResult) {
 				string num = std::to_string(tb.id);
 				cv::Point pt = cv::Point(tb.box.x, tb.box.y);
@@ -474,62 +471,54 @@ int main() {
 			}
 
 
-			}
+			auto SORT_end = std::chrono::high_resolution_clock::now();
+			auto SORT_duration = duration_cast<milliseconds>(SORT_end - SORT_start);
+			std::cout << "Time taken for SORT " << SORT_duration.count() << " ms" << endl;
 
-
-
-
-		cv::imshow("Result", s_frame);
-		cv::waitKey(1);
-		fi++;
-
-
-
-		/*
-		torch::Tensor input_tensor_sppe = sppe_tns(c_frames).to(device);
-
-#ifdef DEBUG
-			std::cout << "SPPE CPU process done\nSPPE GPU process..." << std::endl;
-#endif
-
-			auto sppe_start = std::chrono::high_resolution_clock::now();
-			torch::Tensor output_tensor_sppe = sppeModule.forward({ input_tensor_sppe }).toTensor().to(torch::kCPU);
-			auto sppe_end = std::chrono::high_resolution_clock::now();
-#ifdef DEBUG
-			std::cout << "SPPE GPU process done" << std::endl;
-#endif
-			auto sppe_duration = std::chrono::duration_cast<std::chrono::milliseconds>(sppe_end - sppe_start);
-			std::cout << "Time taken for sppe: " << sppe_duration.count() << " ms" << endl;
-
-			auto data_sppe = std::get<1>(torch::max(output_tensor_sppe.flatten(2, 3), 2));
-
-			int i = 0;
-			for (auto itr = list.itrWarningListBegin(); itr != list.itrWarningListEnd(); itr++)
-			{
-				float temp[34];
-				for (int j = 0; j < 17; j++)
+			std::vector<cv::Mat> c_frames;
+			if (!b_boxes_modified.empty()) {
+				for (std::vector<cv::Rect>::iterator p_box = b_boxes_modified.begin(); p_box != b_boxes_modified.end(); p_box++)
 				{
-					int gg = (int)(data_sppe[i][j].item().toFloat());
-					int x = (gg % 64); //0 <= x <= 79
-					int y = (gg / 64); //0 <= y <= 63
-
-					temp[2 * j] = bbb[i].x + (int)(bbb[i].width*x / 64);
-					temp[2 * j + 1] = bbb[i].y + (int)(bbb[i].height*y / 80);
-
-					cv::Point p(temp[2 * j], temp[2 * j + 1]);
-					cv::circle(frame, p, b_boxes[i].width / 60, cv::Scalar(0, 0, 255, 1), 1);
+					//
+					//c_frames.push_back(sppe::cropFrame(frame, *p_box, cropped_img_sz));
+					c_frames.push_back(sppe_img(frame.clone(), *p_box));
 				}
-				list.updateSkeletons(itr->second, skeleton(temp));
-				i++;
+				torch::Tensor input_tensor_sppe = sppe_tns(c_frames).to(device);
+				auto sppe_start = std::chrono::high_resolution_clock::now();
+				torch::Tensor output_tensor_sppe = sppeModule.forward({ input_tensor_sppe }).toTensor().to(torch::kCPU);
+				auto sppe_end = std::chrono::high_resolution_clock::now();
+				auto sppe_duration = std::chrono::duration_cast<std::chrono::milliseconds>(sppe_end - sppe_start);
+				std::cout << "Time taken for sppe: " << sppe_duration.count() << " ms" << endl;
+
+				auto data_sppe = std::get<1>(torch::max(output_tensor_sppe.flatten(2, 3), 2));
+
+				int i = 0;
+				for (std::vector<cv::Rect>::iterator p_box = b_boxes_modified.begin(); p_box != b_boxes_modified.end(); p_box++)
+				{
+					float temp[34];
+					for (int j = 0; j < 17; j++)
+					{
+						int gg = (int)(data_sppe[i][j].item().toFloat());
+						int x = (gg % 64); //0 <= x <= 79
+						int y = (gg / 64); //0 <= y <= 63
+
+						temp[2 * j] = p_box[i].x + (int)(p_box[i].width*x / 64);
+						temp[2 * j + 1] = p_box[i].y + (int)(p_box[i].height*y / 80);
+
+						cv::Point p(temp[2 * j], temp[2 * j + 1]);
+						cv::circle(s_frame, p, b_boxes[i].width / 60, cv::Scalar(255, 255, 255, 1), 2);
+					}
+				}
 			}
 
-			auto sppe_cpu_operation_end = std::chrono::high_resolution_clock::now();
-			auto sppe_cpu_operation_duration = std::chrono::duration_cast<std::chrono::milliseconds>(sppe_cpu_operation_end - sppe_cpu_operation_start);
-			std::cout << "Time taken for sppe_cpu_operation: " << sppe_cpu_operation_duration.count() << " ms" << endl;
-			*/
-			//}
+
+			cv::imshow("Result", s_frame);
+			cv::waitKey(1);
+			fi++;
+
+		}
+		//uninitialization	
+
 	}
-	//uninitialization	
 	return 0;
 }
-

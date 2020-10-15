@@ -750,6 +750,9 @@ torch::Tensor Darknet::write_results(torch::Tensor prediction, int num_classes, 
 
         for (int k = 0; k < img_classes.size(); k++)
         {
+			if (k != 0) {
+				continue;
+			}
         	auto cls = img_classes[k];
 
         	auto cls_mask = image_prediction_data * (image_prediction_data.select(1, 6) == cls).to(torch::kFloat32).unsqueeze(1);
