@@ -26,7 +26,7 @@ cv::Mat& yolo_img(cv::Mat& img, cv::Mat& padded_img, double& resize_ratio, bool 
 	cv::Size new_sz(new_w, new_h);
 	cv::Scalar grey_value(128, 128, 128);
 	//cv::Mat padded_img(416, 416, CV_8UC3, grey_value); 	//Create an image with grey background
-	std::cout << "new_w: " << new_w << " new_h: " << new_h << std::endl;
+	//std::cout << "new_w: " << new_w << " new_h: " << new_h << std::endl;
 
 	try
 	{
@@ -73,6 +73,7 @@ torch::Tensor yolo_tns(cv::Mat& img)
 cv::Mat& sppe_img(cv::Mat& img, const cv::Rect& rect)
 {
 	img = img(rect);
+	cv::imshow("gulugulu", img);
 	if (rect.width * rect.height > 256 * 320)
 	{
 		cv::resize(img, img, cv::Size(256, 320));
@@ -84,6 +85,18 @@ cv::Mat& sppe_img(cv::Mat& img, const cv::Rect& rect)
 	}
 	return img;
 }
+
+cv::Mat& CNN_img(cv::Mat& image, const cv::Rect& rect)
+{
+	image = image(rect);
+	cv::cvtColor(image, image, cv::COLOR_BGR2RGB);
+	cv::Size scale(224, 224);
+	cv::resize(image, image, scale);
+	image.convertTo(image, CV_32FC3, 1.0f / 255.0f);
+
+	return image;
+}
+
 torch::Tensor sppe_tns(std::vector<cv::Mat>& imgs)
 {
 	std::vector<torch::Tensor> tns;

@@ -60,6 +60,8 @@ int max_age = 90;//max time object disappear
 int min_hits = 3; //min time target appear
 double iouThreshold = 0.3;//matching IOU
 double resize_ratio;
+std::vector<std::string> CNN_labels;
+#define kTOP_K 1;
 
 struct MatchItems {
 	std::set<int> unmatchedDet;
@@ -273,7 +275,18 @@ std::vector<TrackingBox> get_first_frame_result(int __) {
 }
 
 
-
+bool LoadImageNetLabel(std::string file_name,
+	std::vector<std::string> &labels) {
+	std::ifstream ifs(file_name);
+	if (!ifs) {
+		return false;
+	}
+	std::string line;
+	while (std::getline(ifs, line)) {
+		labels.push_back(line);
+	}
+	return true;
+}
 
 
 
@@ -291,15 +304,20 @@ int main() {
 	}
 	torch::Device device(device_type);
 
-	Darknet yolo("../models/yolo/coco/yolov3.cfg", &device);
+	Darknet yolo("../models/yolo/underwater/prune_0.93_keep_0.1.cfg", &device);
 	std::map<std::string, std::string> *info = yolo.get_net_info();
 	(*info)["height"] = "416";
-	yolo.load_weights("../models/yolo/coco/yolov3.weights");
+	yolo.load_weights("../models/yolo/underwater/best.weights");
 	yolo.to(device);
 
-	torch::jit::script::Module sppeModule = torch::jit::load("../models/sppe/posemodel.pt");
-	sppeModule.to(at::kCUDA);
+	//torch::jit::script::Module sppeModule = torch::jit::load("../models/sppe/posemodel.pt");
+	//sppeModule.to(at::kCUDA);
 
+	torch::jit::script::Module CNN_model = torch::jit::load("../models/CNN/drown_mob.pt");
+	CNN_model.to(at::kCUDA);
+
+	LoadImageNetLabel("../drown_label.txt", CNN_labels);
+		
 	//torch::jit::script::Module tcn_module = torch::jit::load("../models/TCN/tcn_model.pt",device);
 	//torch::jit::script::Module tcn_module = torch::jit::load("../models/TCN/tcn_model.pt");
 	//tcn_module.to(at::kCUDA);
@@ -309,10 +327,10 @@ int main() {
 
 
 	//cv::VideoCapture vc(0);
-	cv::VideoCapture vc1("../videos/video4_Trim.mp4");
-	cv::VideoCapture vc2("../videos/video4_Trim.mp4");
-	cv::VideoCapture vc3("../videos/video4_Trim.mp4");
-	cv::VideoCapture vc4("../videos/video4_Trim.mp4");
+	cv::VideoCapture vc1("../videos/0619_115.mp4");
+	cv::VideoCapture vc2("../videos/0619_115.mp4");
+	cv::VideoCapture vc3("../videos/0619_115.mp4");
+	cv::VideoCapture vc4("../videos/0619_115.mp4");
 
 
 	//initialize data containers
@@ -362,6 +380,7 @@ int main() {
 		cv::Mat frame = frame1;
 		cv::Mat s_frame = frame.clone();
 
+
 		double orig_w = frame.cols;
 		double orig_h = frame.rows;
 
@@ -383,8 +402,8 @@ int main() {
 		std::cout << "yolo GPU process..." << std::endl;
 #endif
 		auto yolo_duration = std::chrono::duration_cast<std::chrono::milliseconds>(yolo_end - yolo_start);
-		std::cout << "Time taken for yolo: " << yolo_duration.count() << " ms" << endl;
-		std::cout << "yolo output tensor: " << output_tensor_yolo << std::endl;
+		//std::cout << "Time taken for yolo: " << yolo_duration.count() << " ms" << endl;
+		//std::cout << "yolo output tensor: " << output_tensor_yolo << std::endl;
 
 #ifdef DEBUG
 		std::cout << "yolo CPU post-process..." << std::endl;
@@ -473,16 +492,39 @@ int main() {
 
 			auto SORT_end = std::chrono::high_resolution_clock::now();
 			auto SORT_duration = duration_cast<milliseconds>(SORT_end - SORT_start);
-			std::cout << "Time taken for SORT " << SORT_duration.count() << " ms" << endl;
+			//std::cout << "Time taken for SORT " << SORT_duration.count() << " ms" << endl;
 
 			std::vector<cv::Mat> c_frames;
 			if (!b_boxes_modified.empty()) {
 				for (std::vector<cv::Rect>::iterator p_box = b_boxes_modified.begin(); p_box != b_boxes_modified.end(); p_box++)
 				{
-					//
+
+
 					//c_frames.push_back(sppe::cropFrame(frame, *p_box, cropped_img_sz));
-					c_frames.push_back(sppe_img(frame.clone(), *p_box));
+					//c_frames.push_back(sppe_img(frame.clone(), *p_box));
+					cv::Mat image = CNN_img(frame.clone(), *p_box);
+					auto input_tensor = torch::from_blob(image.data, { 1, 224, 224, 3 });
+					input_tensor = input_tensor.permute({ 0, 3, 1, 2 });
+					input_tensor[0][0] = input_tensor[0][0].sub_(0.485).div_(0.229);
+					input_tensor[0][1] = input_tensor[0][1].sub_(0.456).div_(0.224);
+					input_tensor[0][2] = input_tensor[0][2].sub_(0.406).div_(0.225);
+					input_tensor = input_tensor.to(at::kCUDA);
+					torch::Tensor out_tensor = CNN_model.forward({ input_tensor }).toTensor();
+
+					auto results = out_tensor.sort(-1, true);
+					auto softmaxs = std::get<0>(results)[0].softmax(0);
+					auto indexs = std::get<1>(results)[0];
+
+					int i = 0;
+					auto idx = indexs[i].item<int>();
+					std::cout << "    Label:  " << CNN_labels[idx]  << "    With Probability:  "
+						<< softmaxs[i].item<float>() * 100.0f << "%" << std::endl;
+
 				}
+
+
+				
+				/*
 				torch::Tensor input_tensor_sppe = sppe_tns(c_frames).to(device);
 				auto sppe_start = std::chrono::high_resolution_clock::now();
 				torch::Tensor output_tensor_sppe = sppeModule.forward({ input_tensor_sppe }).toTensor().to(torch::kCPU);
@@ -509,11 +551,11 @@ int main() {
 						cv::circle(s_frame, p, b_boxes[i].width / 60, cv::Scalar(255, 255, 255, 1), 2);
 					}
 				}
+				*/
 			}
 
-
 			cv::imshow("Result", s_frame);
-			cv::waitKey(1);
+			cv::waitKey(0);
 			fi++;
 
 		}
