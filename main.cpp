@@ -502,8 +502,8 @@ int main() {
 
 					//c_frames.push_back(sppe::cropFrame(frame, *p_box, cropped_img_sz));
 					//c_frames.push_back(sppe_img(frame.clone(), *p_box));
-					cv::Mat image = CNN_img(frame.clone(), *p_box);
-					auto input_tensor = torch::from_blob(image.data, { 1, 224, 224, 3 });
+					cv::Mat CNN_image = CNN_img(frame.clone(), *p_box);
+					auto input_tensor = torch::from_blob(CNN_image.data, { 1, 224, 224, 3 });
 					input_tensor = input_tensor.permute({ 0, 3, 1, 2 });
 					input_tensor[0][0] = input_tensor[0][0].sub_(0.485).div_(0.229);
 					input_tensor[0][1] = input_tensor[0][1].sub_(0.456).div_(0.224);

@@ -814,7 +814,7 @@ torch::Tensor Darknet::write_results(torch::Tensor prediction, int num_classes, 
     return output;
 }
 
-
+/*
 cv::Mat recover_box(torch::Tensor output, cv::Mat frame) {
 	std::vector<cv::Rect> b_boxes;
 	std::vector<cv::Rect> b_boxes_modified;
@@ -866,3 +866,4 @@ cv::Mat recover_box(torch::Tensor output, cv::Mat frame) {
 
 		}
 }
+*/

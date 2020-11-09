@@ -20,7 +20,7 @@ message(STATUS "    version: ${OpenCV_VERSION}")
 message(STATUS "    libraries: ${OpenCV_LIBS}")
 message(STATUS "    include path: ${OpenCV_INCLUDE_DIRS}")
 
-set(SOURCES main.cpp Darknet.cpp Hungarian.cpp KalmanTracker.cpp Sppe.cpp TrackingBox.cpp utils.cpp Tracker.cpp)
+set(SOURCES main.cpp Darknet.cpp Hungarian.cpp KalmanTracker.cpp Sppe.cpp TrackingBox.cpp utils.cpp Tracker.cpp CNN.cpp)
 
 add_executable(Test ${SOURCES})
 
