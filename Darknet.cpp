@@ -826,7 +826,7 @@ int boundary(int n, int lower, int upper)
 }
 
 
-std::vector<cv::Rect> Darknet::recover_box(torch::Tensor output, cv::Mat frame, double orig_w, double orig_h, double resize_ratio) {
+std::vector<cv::Rect> Darknet::postprocess(torch::Tensor output, cv::Mat frame, double orig_w, double orig_h, double resize_ratio) {
 	std::vector<cv::Rect> b_boxes;
 	std::vector<cv::Rect> b_boxes_modified;
 

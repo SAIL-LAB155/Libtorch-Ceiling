@@ -38,6 +38,7 @@
 #include "KalmanTracker.h"
 #include "utils.h"
 #include "TrackingBox.h"
+#include "Tracker.h"
 #include "Img_tns.h"
 #include "CNN.h"
 
@@ -65,6 +66,11 @@ double resize_ratio;
 std::vector<std::string> CNN_labels;
 #define kTOP_K 1;
 
+std::vector<KalmanTracker> trackers;
+std::vector<std::vector<TrackingBox>> detFrameData;
+
+
+/*
 struct MatchItems {
 	std::set<int> unmatchedDet;
 	std::set<int> unmatchedTracker;
@@ -90,7 +96,7 @@ int boundary(int n, int lower, int upper)
 {
 	return (n > upper ? upper : (n < lower ? lower : n));
 }
-*/
+
 
 #define CNUM 20
 
@@ -273,7 +279,7 @@ std::vector<TrackingBox> get_first_frame_result(int __) {
 	}
 	return first_frame;
 }
-
+*/
 
 bool LoadImageNetLabel(std::string file_name,
 	std::vector<std::string> &labels) {
@@ -461,7 +467,7 @@ int main() {
 			}
 			*/
 
-			b_boxes_modified = yolo.recover_box(output_tensor_yolo, s_frame, orig_w, orig_h, resize_ratio);
+			b_boxes_modified = yolo.postprocess(output_tensor_yolo, s_frame, orig_w, orig_h, resize_ratio);
 
 			std::vector<std::vector<float>> untracked_boxes;
 			for (auto &box : b_boxes_modified) {

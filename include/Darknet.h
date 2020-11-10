@@ -44,7 +44,7 @@ public:
 	 */
 	torch::Tensor write_results(torch::Tensor prediction, int num_classes, float confidence, float nms_conf = 0.4);
 
-	std::vector<cv::Rect> recover_box(torch::Tensor output, cv::Mat frame, double orig_w, double orig_h, double resize_ratio);
+	std::vector<cv::Rect> postprocess(torch::Tensor output, cv::Mat frame, double orig_w, double orig_h, double resize_ratio);
 
 private:
 

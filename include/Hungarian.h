@@ -1,3 +1,5 @@
+#ifndef HUNG_H
+#define HUNG_H
 ///////////////////////////////////////////////////////////////////////////////
 // Hungarian.h: Header file for Class HungarianAlgorithm.
 //
@@ -32,3 +34,4 @@ private:
 	void step4(int *assignment, double *distMatrix, bool *starMatrix, bool *newStarMatrix, bool *primeMatrix, bool *coveredColumns, bool *coveredRows, int nOfRows, int nOfColumns, int minDim, int row, int col);
 	void step5(int *assignment, double *distMatrix, bool *starMatrix, bool *newStarMatrix, bool *primeMatrix, bool *coveredColumns, bool *coveredRows, int nOfRows, int nOfColumns, int minDim);
 };
+#endif
