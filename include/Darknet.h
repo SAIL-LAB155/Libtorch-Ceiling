@@ -15,7 +15,17 @@
 #include <vector>
 #include <map>
 
+//Image
+#include <opencv2/opencv.hpp>
+#include "opencv2/video/tracking.hpp"
+#include "opencv2/highgui/highgui.hpp"
+#include <opencv2/imgproc/imgproc.hpp>
+
 using namespace std;
+#define YOLO_TENSOR_W 416
+#define YOLO_TENSOR_H 416
+
+#define B_BOX_ENLARGE_SCALE 0.2f
 
 struct Darknet : torch::nn::Module {
 
@@ -33,6 +43,8 @@ public:
 	 *  对预测数据进行筛选
 	 */
 	torch::Tensor write_results(torch::Tensor prediction, int num_classes, float confidence, float nms_conf = 0.4);
+
+	std::vector<cv::Rect> recover_box(torch::Tensor output, cv::Mat frame, double orig_w, double orig_h, double resize_ratio);
 
 private:
 
@@ -52,5 +64,7 @@ private:
     int get_int_from_cfg(map<string, string> block, string key, int default_value);
 
     string get_string_from_cfg(map<string, string> block, string key, string default_value);
+
+
 };
 #endif

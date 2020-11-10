@@ -1,4 +1,17 @@
 #define _SILENCE_CXX17_RESULT_OF_DEPRECATION_WARNING
+//MACROS
+#define SCREEN_W 960
+#define SCREEN_H 540
+#define YOLO_TENSOR_W 416
+#define YOLO_TENSOR_H 416
+#define YOLO_TENSOR_C 3
+#define YOLO_TENSOR_N 1
+
+#define B_BOX_ENLARGE_SCALE 0.2f
+
+#define SPPE_TENSOR_W 256
+#define SPPE_TENSOR_H 320
+#define SPPE_TENSOR_C 3
 
 //Tensor
 //#include <torch/extension.h>
@@ -26,6 +39,7 @@
 #include "utils.h"
 #include "TrackingBox.h"
 #include "Img_tns.h"
+#include "CNN.h"
 
 
 Utils utils_main = Utils::Utils();
@@ -35,19 +49,7 @@ using namespace std::chrono;
 #define RELEASE
 #endif
 
-//MACROS
-#define SCREEN_W 960
-#define SCREEN_H 540
-#define YOLO_TENSOR_W 416
-#define YOLO_TENSOR_H 416
-#define YOLO_TENSOR_C 3
-#define YOLO_TENSOR_N 1
 
-#define B_BOX_ENLARGE_SCALE 0.2f
-
-#define SPPE_TENSOR_W 256
-#define SPPE_TENSOR_H 320
-#define SPPE_TENSOR_C 3
 
 //typedef struct TrackingBox {
 //	int frame;
@@ -83,20 +85,18 @@ double GetIOU(cv::Rect_<float> bb_dr, cv::Rect_<float> bb_gt) {
 	return iou;
 }
 
+/*
 int boundary(int n, int lower, int upper)
 {
 	return (n > upper ? upper : (n < lower ? lower : n));
 }
-
+*/
 
 #define CNUM 20
 
 std::vector<KalmanTracker> trackers;
 std::vector<std::vector<TrackingBox>> detFrameData;
 std::vector<TrackingBox> SORT(std::vector<vector<float>> bbox, int fi);
-
-
-
 
 
 std::vector<cv::Rect_<float>> get_predictions() {
@@ -327,10 +327,10 @@ int main() {
 
 
 	//cv::VideoCapture vc(0);
-	cv::VideoCapture vc1("../videos/0619_115.mp4");
-	cv::VideoCapture vc2("../videos/0619_115.mp4");
-	cv::VideoCapture vc3("../videos/0619_115.mp4");
-	cv::VideoCapture vc4("../videos/0619_115.mp4");
+	cv::VideoCapture vc1("../videos/0507_mul_01.mp4");
+	cv::VideoCapture vc2("../videos/0507_mul_01.mp4");
+	cv::VideoCapture vc3("../videos/0507_mul_01.mp4");
+	cv::VideoCapture vc4("../videos/0507_mul_01.mp4");
 
 
 	//initialize data containers
@@ -411,7 +411,7 @@ int main() {
 
 		auto yolo_cpu_operation_start = std::chrono::high_resolution_clock::now();
 		//torch::Tensor->vector<cv::Rect>
-		std::vector<cv::Rect> b_boxes;
+
 		std::vector<cv::Rect> b_boxes_modified;
 		bool regconized_b_box = (output_tensor_yolo.dim() > 1 ? true : false);
 		if (regconized_b_box)
@@ -419,6 +419,7 @@ int main() {
 #ifdef DEBUG
 			std::cout << "Converting bounding boxes..." << std::endl;
 #endif
+			/*
 			double resized_w = resize_ratio * orig_w;
 			double resized_h = resize_ratio * orig_h;
 			output_tensor_yolo.select(1, 1).add_(-(double)0.5*((double)YOLO_TENSOR_W - (resize_ratio * orig_w))).mul_((double)frame.cols / (double)resized_w);
@@ -453,13 +454,14 @@ int main() {
 					}
 				}
 
-				cv::Rect b_box(temp[0], temp[1], temp[2] - temp[0], temp[3] - temp[1]);
-				b_boxes.push_back(b_box);
 				cv::Rect b_box_modified(temp2[0], temp2[1], temp2[2] - temp2[0], temp2[3] - temp2[1]);
 				b_boxes_modified.push_back(b_box_modified);
 				cv::rectangle(s_frame, b_box_modified, cv::Scalar(255, 0, 255), 4, 4);
 
 			}
+			*/
+
+			b_boxes_modified = yolo.recover_box(output_tensor_yolo, s_frame, orig_w, orig_h, resize_ratio);
 
 			std::vector<std::vector<float>> untracked_boxes;
 			for (auto &box : b_boxes_modified) {
@@ -504,6 +506,9 @@ int main() {
 					//c_frames.push_back(sppe_img(frame.clone(), *p_box));
 					cv::Mat CNN_image = CNN_img(frame.clone(), *p_box);
 					auto input_tensor = torch::from_blob(CNN_image.data, { 1, 224, 224, 3 });
+					//CNN_predict(CNN_image, CNN_model);
+
+					
 					input_tensor = input_tensor.permute({ 0, 3, 1, 2 });
 					input_tensor[0][0] = input_tensor[0][0].sub_(0.485).div_(0.229);
 					input_tensor[0][1] = input_tensor[0][1].sub_(0.456).div_(0.224);
@@ -519,7 +524,7 @@ int main() {
 					auto idx = indexs[i].item<int>();
 					std::cout << "    Label:  " << CNN_labels[idx]  << "    With Probability:  "
 						<< softmaxs[i].item<float>() * 100.0f << "%" << std::endl;
-
+					
 				}
 
 
@@ -555,7 +560,7 @@ int main() {
 			}
 
 			cv::imshow("Result", s_frame);
-			cv::waitKey(0);
+			cv::waitKey(50);
 			fi++;
 
 		}

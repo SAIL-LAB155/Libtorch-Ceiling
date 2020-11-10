@@ -135,6 +135,7 @@ string Darknet::get_string_from_cfg(map<string, string> block, string key, strin
 	return default_value;
 }
 
+
 torch::nn::Conv2dOptions conv_options(int64_t in_planes, int64_t out_planes, int64_t kerner_size,
                           int64_t stride, int64_t padding, int64_t groups, bool with_bias=false){
     torch::nn::Conv2dOptions conv_options = torch::nn::Conv2dOptions(in_planes, out_planes, kerner_size);
@@ -814,56 +815,64 @@ torch::Tensor Darknet::write_results(torch::Tensor prediction, int num_classes, 
     return output;
 }
 
-/*
-cv::Mat recover_box(torch::Tensor output, cv::Mat frame) {
+
+
+
+
+
+int boundary(int n, int lower, int upper)
+{
+	return (n > upper ? upper : (n < lower ? lower : n));
+}
+
+
+std::vector<cv::Rect> Darknet::recover_box(torch::Tensor output, cv::Mat frame, double orig_w, double orig_h, double resize_ratio) {
 	std::vector<cv::Rect> b_boxes;
 	std::vector<cv::Rect> b_boxes_modified;
-	bool regconized_b_box = (output.dim() > 1 ? true : false);
-	if (regconized_b_box)
-	{
+
 #ifdef DEBUG
 		std::cout << "Converting bounding boxes..." << std::endl;
 #endif
-		double resized_w = resize_ratio * orig_w;
-		double resized_h = resize_ratio * orig_h;
-		output.select(1, 1).add_(-(double)0.5*((double)YOLO_TENSOR_W - (resize_ratio * orig_w))).mul_((double)frame.cols / (double)resized_w);
-		output.select(1, 2).add_(-(double)0.5*((double)YOLO_TENSOR_H - (resize_ratio * orig_h))).mul_((double)frame.rows / (double)resized_h);
-		output.select(1, 3).add_(-(double)0.5*((double)YOLO_TENSOR_W - (resize_ratio * orig_w))).mul_((double)frame.cols / (double)resized_w);
-		output.select(1, 4).add_(-(double)0.5*((double)YOLO_TENSOR_H - (resize_ratio * orig_h))).mul_((double)frame.rows / (double)resized_h);
+	double resized_w = resize_ratio * orig_w;
+	double resized_h = resize_ratio * orig_h;
+	output.select(1, 1).add_(-(double)0.5*((double)YOLO_TENSOR_W - (resize_ratio * orig_w))).mul_((double)frame.cols / (double)resized_w);
+	output.select(1, 2).add_(-(double)0.5*((double)YOLO_TENSOR_H - (resize_ratio * orig_h))).mul_((double)frame.rows / (double)resized_h);
+	output.select(1, 3).add_(-(double)0.5*((double)YOLO_TENSOR_W - (resize_ratio * orig_w))).mul_((double)frame.cols / (double)resized_w);
+	output.select(1, 4).add_(-(double)0.5*((double)YOLO_TENSOR_H - (resize_ratio * orig_h))).mul_((double)frame.rows / (double)resized_h);
 
 
-		auto data_yolo = output.accessor<float, 2>();
+	auto data_yolo = output.accessor<float, 2>();
 
-		for (int i = 0; i < output.size(0); i++)
+	for (int i = 0; i < output.size(0); i++)
+	{
+		int temp[4], temp2[4];
+		int init_w = data_yolo[0][3] - data_yolo[0][1];
+		int init_h = data_yolo[0][4] - data_yolo[0][2];
+		for (int j = 1; j < 5; j++)
 		{
-			int temp[4], temp2[4];
-			int init_w = data_yolo[0][3] - data_yolo[0][1];
-			int init_h = data_yolo[0][4] - data_yolo[0][2];
-			for (int j = 1; j < 5; j++)
+			temp[j - 1] = boundary(data_yolo[i][j], 0, (j % 2 == 1 ? frame.cols - 1 : frame.rows - 1));
+			if (j % 2 == 1)
 			{
-				temp[j - 1] = boundary(data_yolo[i][j], 0, (j % 2 == 1 ? frame.cols - 1 : frame.rows - 1));
-				if (j % 2 == 1)
-				{
-					if (0.5*j < 1)
-						temp2[j - 1] = boundary(data_yolo[i][j] - (int)(B_BOX_ENLARGE_SCALE*0.5*init_w), 0, frame.cols - 1);
-					else
-						temp2[j - 1] = boundary(data_yolo[i][j] + (int)(B_BOX_ENLARGE_SCALE*0.5*init_w), 0, frame.cols - 1);
-				}
+				if (0.5*j < 1)
+					temp2[j - 1] = boundary(data_yolo[i][j] - (int)(B_BOX_ENLARGE_SCALE*0.5*init_w), 0, frame.cols - 1);
 				else
-				{
-					if (0.4*j < 1)
-						temp2[j - 1] = boundary(data_yolo[i][j] - (int)(B_BOX_ENLARGE_SCALE*0.5*init_h), 0, frame.rows - 1);
-					else
-						temp2[j - 1] = boundary(data_yolo[i][j] + (int)(B_BOX_ENLARGE_SCALE*0.5*init_h), 0, frame.rows - 1);
-				}
+					temp2[j - 1] = boundary(data_yolo[i][j] + (int)(B_BOX_ENLARGE_SCALE*0.5*init_w), 0, frame.cols - 1);
 			}
-
-			cv::Rect b_box(temp[0], temp[1], temp[2] - temp[0], temp[3] - temp[1]);
-			b_boxes.push_back(b_box);
-			cv::Rect b_box_modified(temp2[0], temp2[1], temp2[2] - temp2[0], temp2[3] - temp2[1]);
-			b_boxes_modified.push_back(b_box_modified);
-			cv::rectangle(s_frame, b_box_modified, cv::Scalar(255, 0, 255), 4, 4);
-
+			else
+			{
+				if (0.4*j < 1)
+					temp2[j - 1] = boundary(data_yolo[i][j] - (int)(B_BOX_ENLARGE_SCALE*0.5*init_h), 0, frame.rows - 1);
+				else
+					temp2[j - 1] = boundary(data_yolo[i][j] + (int)(B_BOX_ENLARGE_SCALE*0.5*init_h), 0, frame.rows - 1);
+			}
 		}
+
+		cv::Rect b_box(temp[0], temp[1], temp[2] - temp[0], temp[3] - temp[1]);
+		b_boxes.push_back(b_box);
+		cv::Rect b_box_modified(temp2[0], temp2[1], temp2[2] - temp2[0], temp2[3] - temp2[1]);
+		b_boxes_modified.push_back(b_box_modified);
+		cv::rectangle(frame, b_box_modified, cv::Scalar(255, 0, 255), 4, 4);
+	}
+
+	return b_boxes_modified;
 }
-*/

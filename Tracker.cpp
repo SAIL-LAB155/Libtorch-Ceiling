@@ -1,6 +1,25 @@
-
-
 /*
+#include <iostream>
+#include <vector>
+#include <set>
+#include <algorithm>
+#include <sstream>
+
+//Image
+#include <opencv2/opencv.hpp>
+#include "opencv2/video/tracking.hpp"
+#include "opencv2/highgui/highgui.hpp"
+#include <opencv2/imgproc/imgproc.hpp>
+
+#include "Hungarian.h"
+
+extern double iouThreshold;
+extern int min_hits;
+extern int max_age;
+extern std::vector<KalmanTracker> trackers;
+extern std::vector<std::vector<TrackingBox>> detFrameData;
+
+
 std::vector<cv::Rect_<float>> get_predictions() {
 	std::vector<cv::Rect_<float>> predBoxes;
 	for (auto it = trackers.begin(); it != trackers.end();)
@@ -20,6 +39,19 @@ std::vector<cv::Rect_<float>> get_predictions() {
 	}
 	return predBoxes;
 }
+
+double GetIOU(cv::Rect_<float> bb_dr, cv::Rect_<float> bb_gt) {
+	float in = (bb_dr & bb_gt).area();
+	float un = bb_dr.area() + bb_gt.area() - in;
+
+	if (un < DBL_EPSILON)
+		return 0;
+
+	double iou = in / un;
+
+	return iou;
+}
+
 
 MatchItems Sort_match(std::vector<std::vector<TrackingBox>> detFrameData, int __, std::vector<cv::Rect_<float>> predictedBoxes) {
 	int f_num = detFrameData.size() - 1;
@@ -176,5 +208,5 @@ std::vector<TrackingBox> get_first_frame_result(int __) {
 	return first_frame;
 }
 
-*/
 
+*/
